@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV Channels Wall</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #video-wall {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: grid;
+            gap: 2px;
+            background: #111;
+            padding: 2px;
+        }
+
+        .channel-tile {
+            position: relative;
+            background: #222;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s ease, z-index 0.2s ease;
+        }
+
+        .channel-tile:hover {
+            transform: scale(1.02);
+            z-index: 100;
+        }
+
+        .channel-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .channel-offline {
+            position: relative;
+        }
+
+        .channel-offline::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(200, 50, 50, 0.3);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .channel-offline::after {
+            content: '❌';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -30%)scaleY(0.75);
+            font-size: 3em;
+            color: #ff4444;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        /* Подсветка обновленных каналов */
+        .channel-updated {
+            box-shadow: 0 0 0 3px #4CAF50;
+            animation: pulse 2s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 3px #4CAF50; }
+            50% { box-shadow: 0 0 0 6px #4CAF50; }
+            100% { box-shadow: 0 0 0 3px #4CAF50; }
+        }
+
+        /* Модальное окно */
+        #image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            cursor: pointer;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 95vw;
+            max-height: 95vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #modal-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        /* Красный крестик для модального окна */
+        .modal-offline-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 1002;
+        }
+
+        .modal-offline-overlay::before {
+            content: '❌';
+            font-size: min(20vw, 20vh);
+            color: #ff4444;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.8);
+            opacity: 0.8;
+            animation: crossPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes crossPulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.1); opacity: 0.9; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+
+        /* Плитки-переключатели в модальном окне */
+        #modal-navigation {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.8);
+            border-radius: 10px;
+            max-width: 90vw;
+            overflow-x: auto;
+            z-index: 1003;
+        }
+
+        .modal-nav-tile {
+            width: 80px;
+            height: 45px;
+            flex-shrink: 0;
+            cursor: pointer;
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+            border: 2px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .modal-nav-tile.active {
+            border-color: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+        }
+
+        .modal-nav-tile img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Кнопка копирования списка */
+        #copy-list-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            transition: background 0.3s ease;
+        }
+
+        #copy-list-btn:hover {
+            background: rgba(50,50,50,0.9);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 40px;
+            cursor: pointer;
+            z-index: 1001;
+            background: rgba(0,0,0,0.5);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 500;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            display: none;
+        }
+
+        .refresh-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        .refresh-btn:hover {
+            background: #666;
+        }
+
+        #status {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .channel-tile {
+            animation: fadeIn 0.5s ease;
+        }
+
+        /* Уведомление о копировании */
+        .copy-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            z-index: 2000;
+            font-size: 16px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button class="refresh-btn" onclick="loadVideoWall()">🔄</button>
+        <span id="status">Загрузка...</span>
+    </div>
+
+    <div id="video-wall"></div>
+
+    <div id="image-modal" onclick="closeModal()">
+        <div class="modal-close" onclick="closeModal()">×</div>
+        <button id="copy-list-btn" title="Скопировать список неисправных каналов">
+            📋 Список
+        </button>
+        <div class="modal-content">
+            <img id="modal-image" src="" alt="">
+            <div class="modal-offline-overlay" id="modal-offline-overlay" style="display: none;"></div>
+        </div>
+        <div id="modal-navigation"></div>
+    </div>
+
+    <div class="copy-notification" id="copy-notification">Скопировано в буфер!</div>
+
+    <!-- Добавляем скрытый textarea для fallback копирования -->
+    <textarea id="copy-fallback" style="position: absolute; left: -9999px; opacity: 0;"></textarea>
+
+    <script>
+        // Конфигурация
+        const CONFIG = {
+            screenshotsFolder: 'screenshots',
+            statesFile: 'channel_states.json',
+            updateInterval: 10000,
+            gridGap: 2
+        };
+
+        let currentStates = {};
+        let lastUpdateTimes = {};
+        let isModalOpen = false;
+        let updateTimer = null;
+        let currentOfflineChannels = [];
+        let currentModalChannel = null;
+
+        // Надежная функция копирования в буфер
+        function copyToClipboard(text) {
+            return new Promise((resolve, reject) => {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(resolve).catch(reject);
+                } else {
+                    const textArea = document.getElementById('copy-fallback');
+                    textArea.value = text;
+                    textArea.style.display = 'block';
+                    textArea.select();
+                    textArea.setSelectionRange(0, 99999);
+                    
+                    try {
+                        const successful = document.execCommand('copy');
+                        textArea.style.display = 'none';
+                        if (successful) {
+                            resolve();
+                        } else {
+                            reject(new Error('Не удалось скопировать текст'));
+                        }
+                    } catch (err) {
+                        textArea.style.display = 'none';
+                        reject(err);
+                    }
+                }
+            });
+        }
+
+        // Копирование списка неисправных каналов
+        function copyOfflineChannelsList() {
+            const offlineChannels = getOfflineChannels(currentStates);
+            
+            if (offlineChannels.length === 0) {
+                showCopyNotification('Нет неисправных каналов', false);
+                return;
+            }
+            
+            const channelList = offlineChannels.map(channelNum => {
+                const channelData = currentStates[channelNum];
+                const channelName = channelData?.name || `Канал ${channelNum}`;
+                return `${channelNum}. ${channelName}`;
+            }).join('\n');
+            
+            copyToClipboard(channelList)
+                .then(() => {
+                    showCopyNotification(`Скопировано ${offlineChannels.length} каналов!`);
+                })
+                .catch(err => {
+                    console.error('Ошибка копирования:', err);
+                    showCopyNotification('Ошибка копирования', false);
+                });
+        }
+
+        // Показать уведомление о копировании
+        function showCopyNotification(message = 'Скопировано в буфер!', isSuccess = true) {
+            const notification = document.getElementById('copy-notification');
+            notification.textContent = message;
+            notification.style.background = isSuccess ? 'rgba(76, 175, 80, 0.9)' : 'rgba(244, 67, 54, 0.9)';
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 2000);
+        }
+
+        // Получение списка неисправных каналов
+        function getOfflineChannels(states) {
+            return Object.keys(states)
+                .filter(channelNum => states[channelNum]?.down === true)
+                .sort((a, b) => parseInt(a) - parseInt(b));
+        }
+
+        // Получение имени файла из пути
+        function getFilenameFromPath(path) {
+            if (!path) return null;
+            return path.split('/').pop() || path.split('\\').pop();
+        }
+
+        // Расчет оптимальной сетки
+        function calculateGridSize(channelCount) {
+            const aspectRatio = 16 / 9;
+            const screenRatio = window.innerWidth / window.innerHeight;
+            
+            let bestCols = 1;
+            let bestRows = 1;
+            let bestScore = Infinity;
+
+            for (let cols = 1; cols <= channelCount; cols++) {
+                const rows = Math.ceil(channelCount / cols);
+                const tileWidth = (window.innerWidth - (cols - 1) * CONFIG.gridGap) / cols;
+                const tileHeight = (window.innerHeight - (rows - 1) * CONFIG.gridGap) / rows;
+                const actualRatio = tileWidth / tileHeight;
+                
+                const ratioDiff = Math.abs(actualRatio - aspectRatio);
+                const emptyCells = cols * rows - channelCount;
+                const score = ratioDiff + emptyCells * 0.1;
+                
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestCols = cols;
+                    bestRows = rows;
+                }
+            }
+
+            return { cols: bestCols, rows: bestRows };
+        }
+
+        // Загрузка состояний каналов
+        async function loadChannelStates() {
+            try {
+                const response = await fetch(CONFIG.statesFile + '?t=' + Date.now());
+                const states = await response.json();
+                
+                const updatedChannels = findUpdatedChannels(states);
+                currentStates = states;
+                
+                return { states, updatedChannels };
+            } catch (error) {
+                console.error('Ошибка загрузки состояний:', error);
+                return { states: {}, updatedChannels: [] };
+            }
+        }
+
+        // ИСПРАВЛЕННАЯ ФУНКЦИЯ: Поиск обновленных каналов
+        function findUpdatedChannels(newStates) {
+            const updatedChannels = [];
+            
+            Object.keys(newStates).forEach(channelNum => {
+                const newState = newStates[channelNum];
+                const oldState = currentStates[channelNum];
+                
+                // Если канала не было раньше - это обновление
+                if (!oldState) {
+                    updatedChannels.push(channelNum);
+                    return;
+                }
+                
+                // Проверяем изменения в скриншотах
+                const newScreenshot = newState.last_screenshot || '';
+                const oldScreenshot = oldState.last_screenshot || '';
+                
+                // Проверяем изменения в статусе online/offline
+                const newStatus = newState.down;
+                const oldStatus = oldState.down;
+                
+                // Если изменился скриншот ИЛИ статус - это обновление
+                if (newScreenshot !== oldScreenshot || newStatus !== oldStatus) {
+                    updatedChannels.push(channelNum);
+                }
+            });
+            
+            return updatedChannels;
+        }
+
+        // Создание плитки канала
+        function createChannelTile(channelNum, channelData) {
+            const tile = document.createElement('div');
+            tile.className = 'channel-tile';
+            tile.dataset.channel = channelNum;
+            
+            const isOffline = channelData?.down === true;
+            if (isOffline) {
+                tile.classList.add('channel-offline');
+            }
+            
+            const img = document.createElement('img');
+            img.className = 'channel-image';
+            img.loading = 'lazy';
+            img.dataset.channel = channelNum;
+            
+            const screenshotPath = channelData?.last_screenshot;
+            if (screenshotPath) {
+                const filename = getFilenameFromPath(screenshotPath);
+                img.src = `${CONFIG.screenshotsFolder}/${filename}?t=${Date.now()}`;
+                img.alt = `Канал ${channelNum}`;
+                
+                img.onerror = function() {
+                    this.src = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDMyMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjMyMCIgaGVpZ2h0PSIxODAiIGZpbGw9IiMzMzMiLz48L3N2Zz4=`;
+                };
+            } else {
+                img.src = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDMyMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjMyMCIgaGVpZ2h0PSIxODAiIGZpbGw9IiMzMzMiLz48L3N2Zz4=`;
+            }
+            
+            tile.appendChild(img);
+            
+            tile.onclick = (e) => {
+				e.stopPropagation();
+				if (isModalOpen) {
+					closeModal();
+				} else if (screenshotPath) {
+					const channelData = currentStates[channelNum];
+					const actualIsOffline = channelData?.down === true;
+					const offlineChannels = getOfflineChannels(currentStates);
+					openModal(img.src, channelNum, actualIsOffline, offlineChannels);
+				}
+			};
+            
+            return tile;
+        }
+
+        // Создание плитки для навигации
+        function createNavTile(channelNum, isActive = false) {
+            const tile = document.createElement('div');
+            tile.className = `modal-nav-tile ${isActive ? 'active' : ''}`;
+            tile.dataset.channel = channelNum;
+            
+            const channelData = currentStates[channelNum];
+            const isOffline = channelData?.down === true;
+            
+            // Добавляем крестик для неисправных каналов
+            if (isOffline) {
+                const cross = document.createElement('div');
+                cross.style.cssText = `
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    font-size: 1.5em;
+                    color: #ff4444;
+                    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+                    pointer-events: none;
+                    z-index: 2;
+                `;
+                cross.textContent = '❌';
+                tile.appendChild(cross);
+            }
+            
+            const img = document.createElement('img');
+            const screenshotPath = channelData?.last_screenshot;
+            if (screenshotPath) {
+                const filename = getFilenameFromPath(screenshotPath);
+                img.src = `${CONFIG.screenshotsFolder}/${filename}?t=${Date.now()}`;
+                img.alt = `Канал ${channelNum}`;
+                
+                img.onerror = function() {
+                    this.src = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iNDUiIHZpZXdCb3g9IjAgMCA4MCA0NSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iODAiIGhlaWdodD0iNDUiIGZpbGw9IiMzMzMiLz48L3N2Zz4=`;
+                };
+            } else {
+                img.src = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iNDUiIHZpZXdCb3g9IjAgMCA4MCA0NSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iODAiIGhlaWdodD0iNDUiIGZpbGw9IiMzMzMiLz48L3N2Zz4=`;
+            }
+            
+            tile.appendChild(img);
+            
+            tile.onclick = (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                switchToChannel(channelNum);
+            };
+            
+            return tile;
+        }
+
+        // Переключение на другой канал в модальном окне
+        function switchToChannel(channelNum) {
+            const channelData = currentStates[channelNum];
+            const screenshotPath = channelData?.last_screenshot;
+            const isOffline = channelData?.down === true;
+            
+            if (screenshotPath) {
+                const filename = getFilenameFromPath(screenshotPath);
+                const imageSrc = `${CONFIG.screenshotsFolder}/${filename}?t=${Date.now()}`;
+                
+                const modalImage = document.getElementById('modal-image');
+                const modalOverlay = document.getElementById('modal-offline-overlay');
+                
+                modalImage.src = imageSrc;
+                modalImage.alt = `Канал ${channelNum}`;
+                
+                // ПРАВИЛЬНОЕ ОТОБРАЖЕНИЕ КРЕСТИКА
+                if (isOffline) {
+                    modalOverlay.style.display = 'flex';
+                } else {
+                    modalOverlay.style.display = 'none';
+                }
+                
+                currentModalChannel = channelNum;
+                updateNavTiles();
+            }
+        }
+
+        // Обновление активной плитки в навигации
+        function updateNavTiles() {
+            const navContainer = document.getElementById('modal-navigation');
+            const tiles = navContainer.querySelectorAll('.modal-nav-tile');
+            
+            tiles.forEach(tile => {
+                tile.classList.toggle('active', tile.dataset.channel === currentModalChannel);
+            });
+        }
+
+        // Создание навигационных плиток
+        function createNavTiles(offlineChannels, currentChannel) {
+            const navContainer = document.getElementById('modal-navigation');
+            navContainer.innerHTML = '';
+            
+            offlineChannels.forEach(channelNum => {
+                const isActive = channelNum === currentChannel;
+                const tile = createNavTile(channelNum, isActive);
+                navContainer.appendChild(tile);
+            });
+        }
+
+        // Открытие модального окна
+        function openModal(imageSrc, channelNum, isOffline, offlineChannels = null) {
+			const modal = document.getElementById('image-modal');
+			const modalImage = document.getElementById('modal-image');
+			const modalOverlay = document.getElementById('modal-offline-overlay');
+			const copyBtn = document.getElementById('copy-list-btn');
+			
+			modalImage.src = imageSrc;
+			modalImage.alt = `Канал ${channelNum}`;
+			
+			// ВСЕГДА используем актуальные данные для определения статуса
+			const channelData = currentStates[channelNum];
+			const actualIsOffline = channelData?.down === true;
+			
+			// Показываем крестик based на актуальном статусе
+			modalOverlay.style.display = actualIsOffline ? 'flex' : 'none';
+			
+			currentModalChannel = channelNum;
+			
+			// ВСЕГДА используем актуальный список неисправных каналов
+			const allOfflineChannels = getOfflineChannels(currentStates);
+			
+			if (actualIsOffline && allOfflineChannels.length > 1) {
+				createNavTiles(allOfflineChannels, channelNum);
+			} else {
+				document.getElementById('modal-navigation').innerHTML = '';
+			}
+			
+			// Кнопка копирования показывается если есть неисправные каналы
+			copyBtn.style.display = allOfflineChannels.length > 0 ? 'flex' : 'none';
+			
+			modal.style.display = 'block';
+			isModalOpen = true;
+			document.body.style.overflow = 'hidden';
+		}
+        // Закрытие модального окна
+        function closeModal() {
+            const modal = document.getElementById('image-modal');
+            modal.style.display = 'none';
+            isModalOpen = false;
+            document.body.style.overflow = '';
+            currentModalChannel = null;
+        }
+
+        // НОВАЯ ФУНКЦИЯ: Правильная сортировка плиток
+        function sortTilesByStatus(states) {
+            const videoWall = document.getElementById('video-wall');
+            const tiles = Array.from(videoWall.children);
+            
+            // Сортируем по номеру канала, но неработающие - в начало
+            tiles.sort((a, b) => {
+                const aChannel = a.dataset.channel;
+                const bChannel = b.dataset.channel;
+                
+                const aOffline = states[aChannel]?.down === true;
+                const bOffline = states[bChannel]?.down === true;
+                
+                const aNum = parseInt(aChannel);
+                const bNum = parseInt(bChannel);
+                
+                // Сначала сортируем по статусу (оффлайн в начале)
+                if (aOffline && !bOffline) return -1;
+                if (!aOffline && bOffline) return 1;
+                
+                // Затем по номеру канала
+                return aNum - bNum;
+            });
+            
+            // Переставляем плитки в правильном порядке
+            tiles.forEach(tile => videoWall.appendChild(tile));
+        }
+
+        // Автообновление
+        function startAutoRefresh() {
+            loadVideoWall();
+            updateTimer = setInterval(updateIndividualChannels, CONFIG.updateInterval);
+        }
+
+        // Основная функция загрузки
+        async function loadVideoWall() {
+            try {
+                await createVideoWall();
+            } catch (error) {
+                console.error('Ошибка создания видеостены:', error);
+                document.getElementById('status').textContent = 'Ошибка загрузки';
+            }
+        }
+
+        // Индивидуальное обновление каналов
+        async function updateIndividualChannels() {
+            try {
+                const { states, updatedChannels } = await loadChannelStates();
+                
+                if (updatedChannels.length > 0) {
+                    await updateChannelTiles(updatedChannels);
+                    document.getElementById('status').textContent = 
+                        `Обновлено: ${updatedChannels.length} каналов | ${new Date().toLocaleTimeString()}`;
+                } else {
+                    document.getElementById('status').textContent = 
+                        `Нет изменений | ${new Date().toLocaleTimeString()}`;
+                }
+            } catch (error) {
+                console.error('Ошибка обновления:', error);
+                document.getElementById('status').textContent = 'Ошибка обновления';
+            }
+        }
+
+        // Обновление отдельных плиток
+        async function updateChannelTiles(updatedChannels) {
+            if (updatedChannels.length === 0) return;
+            
+            console.log(`Обновление каналов: ${updatedChannels.join(', ')}`);
+            
+            let needsSorting = false;
+            
+            updatedChannels.forEach(channelNum => {
+                const channelData = currentStates[channelNum];
+                const existingTile = document.querySelector(`.channel-tile[data-channel="${channelNum}"]`);
+                
+                if (existingTile && channelData) {
+                    const wasOffline = existingTile.classList.contains('channel-offline');
+                    const isNowOffline = channelData.down === true;
+                    
+                    // Проверяем изменение статуса
+                    if (wasOffline !== isNowOffline) {
+                        needsSorting = true;
+                        console.log(`Канал ${channelNum} изменил статус: ${wasOffline} -> ${isNowOffline}`);
+                        
+                        if (isNowOffline) {
+                            existingTile.classList.add('channel-offline');
+                        } else {
+                            existingTile.classList.remove('channel-offline');
+                        }
+                    }
+                    
+                    // Обновляем изображение
+                    const existingImage = existingTile.querySelector('.channel-image');
+                    const screenshotPath = channelData.last_screenshot;
+                    if (screenshotPath && existingImage) {
+                        const filename = getFilenameFromPath(screenshotPath);
+                        existingImage.src = `${CONFIG.screenshotsFolder}/${filename}?t=${Date.now()}`;
+                    }
+                    
+                    // Подсветка обновления
+                    existingTile.classList.add('channel-updated');
+                    setTimeout(() => {
+                        existingTile.classList.remove('channel-updated');
+                    }, 3000);
+                }
+            });
+            
+            // ВСЕГДА выполняем сортировку при обновлении статусов
+            if (needsSorting) {
+                console.log("Выполняем пересортировку из-за изменения статусов");
+                sortTilesByStatus(currentStates);
+            }
+        }
+
+        // Создание видеостены
+        async function createVideoWall() {
+            const { states, updatedChannels } = await loadChannelStates();
+            const channelNumbers = Object.keys(states).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            if (channelNumbers.length === 0) {
+                document.getElementById('status').textContent = 'Нет данных о каналах';
+                return;
+            }
+
+            const grid = calculateGridSize(channelNumbers.length);
+            const videoWall = document.getElementById('video-wall');
+            
+            videoWall.style.gridTemplateColumns = `repeat(${grid.cols}, 1fr)`;
+            videoWall.style.gridTemplateRows = `repeat(${grid.rows}, 1fr)`;
+            
+            videoWall.innerHTML = '';
+            
+            channelNumbers.forEach((channelNum, index) => {
+                const channelData = states[channelNum];
+                const tile = createChannelTile(channelNum, channelData);
+                videoWall.appendChild(tile);
+            });
+
+            // ВАЖНО: Выполняем сортировку после создания всех плиток
+            sortTilesByStatus(states);
+            
+            document.getElementById('status').textContent = 
+                `${channelNumbers.length} каналов | ${grid.cols}×${grid.rows} | ${new Date().toLocaleTimeString()}`;
+        }
+        
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            startAutoRefresh();
+            
+            document.getElementById('copy-list-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                copyOfflineChannelsList();
+            });
+        });
+    </script>
+</body>
+</html>
