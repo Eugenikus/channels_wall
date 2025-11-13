@@ -450,7 +450,7 @@
             }
         }
 
-        // ИСПРАВЛЕННАЯ ФУНКЦИЯ: Поиск обновленных каналов
+        //Поиск обновленных каналов
         function findUpdatedChannels(newStates) {
             const updatedChannels = [];
             
@@ -595,7 +595,6 @@
                 modalImage.src = imageSrc;
                 modalImage.alt = `Канал ${channelNum}`;
                 
-                // ПРАВИЛЬНОЕ ОТОБРАЖЕНИЕ КРЕСТИКА
                 if (isOffline) {
                     modalOverlay.style.display = 'flex';
                 } else {
@@ -639,7 +638,7 @@
 			modalImage.src = imageSrc;
 			modalImage.alt = `Канал ${channelNum}`;
 			
-			// ВСЕГДА используем актуальные данные для определения статуса
+			// Используем актуальные данные для определения статуса
 			const channelData = currentStates[channelNum];
 			const actualIsOffline = channelData?.down === true;
 			
@@ -673,7 +672,7 @@
             currentModalChannel = null;
         }
 
-        // НОВАЯ ФУНКЦИЯ: Правильная сортировка плиток
+        // Правильная сортировка плиток
         function sortTilesByStatus(states) {
             const videoWall = document.getElementById('video-wall');
             const tiles = Array.from(videoWall.children);
@@ -780,7 +779,6 @@
                 }
             });
             
-            // ВСЕГДА выполняем сортировку при обновлении статусов
             if (needsSorting) {
                 console.log("Выполняем пересортировку из-за изменения статусов");
                 sortTilesByStatus(currentStates);
@@ -811,7 +809,7 @@
                 videoWall.appendChild(tile);
             });
 
-            // ВАЖНО: Выполняем сортировку после создания всех плиток
+            // Выполняем сортировку после создания всех плиток
             sortTilesByStatus(states);
             
             document.getElementById('status').textContent = 
@@ -829,4 +827,5 @@
         });
     </script>
 </body>
+
 </html>
