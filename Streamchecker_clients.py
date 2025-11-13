@@ -53,7 +53,7 @@ def suppress_ffmpeg_output():
             os.close(original_stdout)
 
 def send_message(sock, data):
-    """Отправка сообщения с длиной префикса"""
+    """Отправка сообщения"""
     try:
         message = json.dumps(data).encode('utf-8')
         # Добавляем префикс с длиной сообщения (4 байта)
@@ -63,7 +63,7 @@ def send_message(sock, data):
         print(f"[Send Error] {e}")
 
 def receive_message(sock):
-    """Прием сообщения с длиной префикса"""
+    """Прием сообщения"""
     try:
         # Сначала читаем длину сообщения
         length_data = b''
@@ -241,4 +241,5 @@ def main():
         client.stop_client()
 
 if __name__ == "__main__":
+
     main()
